@@ -10,6 +10,7 @@ class DatasetPreprocessingOverlap:
     def __init__(self):
         self.frameSize = 0.300
         self.overlap = 0.150
+        self.tolerance = 0.2
 
     def parseXml(self, filename):
         tree = et.parse(filename)
@@ -56,19 +57,37 @@ class DatasetPreprocessingOverlap:
             start = float(curEvent.getStartSecond())*self.Fs
             stop = float(curEvent.getStopSecond())*self.Fs
 
-            if curPos + 0.20*Win > start and curPos + Win - 0.20*Win < stop:
-                print(1)
+            # print('start win ' + str(curPos))
+            # print('start win +20% ' + str(curPos + self.tolerance*Win))
+            # print('stop win ' + str(curPos + Win))
+            # print('stop win -20% ' + str(curPos + Win - self.tolerance*Win))
+            #
+            # print('start event ' + str(start))
+            # print('stop event ' + str(stop))
+
+            if curPos + Win - self.tolerance*Win < start:
+                # print(1)
+                target = "3"
+                backgorundEvent = Event.Event("other" + wav_filename[-12:-4], target, None, None,
+                                              curEvent.getBackground(), curFrame)
+                segmentedFileList.append(backgorundEvent)
+            elif curPos + self.tolerance*Win >= start and curPos + Win - self.tolerance*Win <= stop:
+                # print(2)
                 relevantEvent = Event.Event(curEvent.getId(), curEvent.getTarget(),
                                             None, None,
                                             curEvent.getBackground(), curFrame)
                 segmentedFileList.append(relevantEvent)
-            else:   # TODO: discard events in some cases
-                if curPos + Win - 0.20*Win > stop and index < len(eventsList)-1:
+            elif curPos + self.tolerance*Win > stop:
+                # print(3)
+                if index < len(eventsList)-1:
+                    # print(4)
                     index += 1
                 target = "3"
                 backgorundEvent = Event.Event("other"+wav_filename[-12:-4], target, None, None,
                                               curEvent.getBackground(), curFrame)
                 segmentedFileList.append(backgorundEvent)
+            # else:  # else drop curFrame
+                # print(5)
 
             curPos = curPos + Step
 

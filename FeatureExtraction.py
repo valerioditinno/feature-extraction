@@ -2,7 +2,6 @@ import sys
 from pyAudioAnalysis import audioFeatureExtraction
 import numpy as np
 import DatasetPreprocessing as pre
-import DatasetPreprocessingOverlap as preOver
 import time
 
 
@@ -58,27 +57,10 @@ class FeatureExtraction:
             -id, id to easily recover the orginal file
             -background, background type [bells, crowd_claps, twistle, crowd, cars, household_app, rain, gaussian_noise]
 
-
-
-    stream segmetation:
-
-    |------------300ms------------|
-                  |------------300ms------------|
-                                |------------300ms------------|
-
-
-    features extraction:
-
-    |------------300ms------------|
-
-    |----150ms----|                        ------------->   42 features
-            |----150ms----|
-                    |----150ms----|
     '''
 
     def __init__(self):
         self.dataPre = pre.DatasetPreprocessing()
-        self.dataPreOver = preOver.DatasetPreprocessingOverlap()
         self.segmentation = 0.300
         self.frameSize = 0.150
         self.frameStep = 0.075  # 50% overlap
@@ -106,42 +88,28 @@ class FeatureExtraction:
                       'MFCCs13_median', 'MFCCs13_median_absolute_deviation',
                       'target', 'frame', 'snr', 'id', 'background']
 
-    def extractFeatures(self, eventsList, Fs, snr, overlap):
+    def extractFeatures(self, eventsList, Fs, snr):
         feature = []
         for event in eventsList:
-            frameList = []
-            if overlap:
-                frameList.append(event.getData())
-            else:
-                if(len(event.getData()) >= self.segmentation * Fs):
-                    i = 0
-                    while((i + self.segmentation * Fs ) < len(event.getData())):
-                        tmpData = event.getData()[i: int(i + self.segmentation * Fs)]
-                        frameList.append(tmpData)
-                        i = int(i + self.segmentation * Fs)
-                else:
-                    continue #drop
+            frame = event.getData()
 
-            numFrame = 0
-            for frame in frameList:
-                F = audioFeatureExtraction.stFeatureExtraction(frame, Fs, self.frameSize * Fs, self.frameStep * Fs)
-                raw_feature = F[:self.discard, :].T
+            F = audioFeatureExtraction.stFeatureExtraction(frame, Fs, self.frameSize * Fs, self.frameStep * Fs)
+            raw_feature = F[:self.discard, :].T
 
-                tmp = []
-                for j in range(0, raw_feature.shape[1]):  # compute median and med for each columns
-                    feature_column = raw_feature[:, j]
-                    median = np.median(raw_feature[:, j])
-                    median_absolute_deviation = np.median(np.abs(feature_column - median))
-                    tmp.append(median)
-                    tmp.append(median_absolute_deviation)
+            tmp = []
+            for j in range(0, raw_feature.shape[1]):  # compute median and med for each columns
+                feature_column = raw_feature[:, j]
+                median = np.median(raw_feature[:, j])
+                median_absolute_deviation = np.median(np.abs(feature_column - median))
+                tmp.append(median)
+                tmp.append(median_absolute_deviation)
 
-                tmp.append(event.getTarget())  # add class label
-                tmp.append(raw_feature.shape[0])  # add number of frame per signal
-                tmp.append(snr)  # add snr
-                tmp.append(event.getId() + "_subFrame" + str(numFrame))  # add id
-                numFrame += 1
-                tmp.append(event.getBackground())  # add background type
-                feature.append(tmp)
+            tmp.append(event.getTarget())  # add class label
+            tmp.append(raw_feature.shape[0])  # add number of frame per signal
+            tmp.append(snr)  # add snr
+            tmp.append(event.getId())  # add id
+            tmp.append(event.getBackground())  # add background type
+            feature.append(tmp)
 
         return feature
 
@@ -175,7 +143,7 @@ class FeatureExtraction:
 
         np.savetxt(file, tmp, delimiter=",", fmt=fmt)
 
-    def processDataset(self, path, wavNum, snrRange, outputFile, overlap):
+    def processDataset(self, path, wavNum, snrRange, outputFile):
         file = open(outputFile, 'a')
 
         header = ","
@@ -194,15 +162,11 @@ class FeatureExtraction:
                 wav_base_path = path + 'sounds/000' + str(i)
 
             for j in range(1, snrRange+1):  # process differents snr  1=30db ... 6=5db
-                progress = float(((i-1)*(snrRange+1) + j) / total)
+                progress = float(((i-1)*(snrRange) + j) / total)
                 self.update_progress(progress)  # display progressbar
 
-                if overlap:
-                    eventsList = self.dataPreOver.segmentation(xml_path, wav_base_path + '_' + str(j) + '.wav')
-                    feature = self.extractFeatures(eventsList, self.dataPreOver.Fs, snr=j, overlap=True)
-                else:
-                    eventsList = self.dataPre.preProcessWav(xml_path, wav_base_path + '_' + str(j) + '.wav')
-                    feature = self.extractFeatures(eventsList, self.dataPre.Fs, snr=j, overlap=False)
+                eventsList = self.dataPre.segmentation(xml_path, wav_base_path + '_' + str(j) + '.wav')
+                feature = self.extractFeatures(eventsList, self.dataPre.Fs, snr=j)
 
                 self.writeToCSV(feature, cont, len(self.label)+1, file)
 
@@ -217,7 +181,7 @@ start_time = time.time()
 fe = FeatureExtraction()
 fe.processDataset(path='/home/valerio/Scrivania/stage/dataset/MIVIA_DB4_dist/training/',
                        wavNum=67, snrRange=6,
-                       outputFile='out/training_dataset0300_overlap.csv', overlap=True)
+                       outputFile='out/training_dataset0300_overlap.csv')
 
 elapsed_time = time.time()-start_time
 print("Elapsed time: " + str(elapsed_time))

@@ -1,13 +1,15 @@
 import sys
-from pyAudioAnalysis import audioFeatureExtraction
-import numpy as np
-import DatasetPreprocessing as pre
 import time
+
+import numpy as np
+
+import DatasetPreprocessing as pre
+import audioFeatureExtraction
 
 
 class FeatureExtraction:
     '''
-        This class implement features extraction using pyAudioAnalysis on Mivia Audio Events Dataset.
+        This class implement features extraction using pyAudioAnalysis(a my extension to python3) on Mivia Audio Events Dataset.
 
         The data set:
         The MIVIA audio events data set is composed of a total of 6000 events for surveillance applications,
@@ -56,6 +58,15 @@ class FeatureExtraction:
             -snr, snr in the range [1, 6]
             -id, id to easily recover the orginal file
             -background, background type [bells, crowd_claps, twistle, crowd, cars, household_app, rain, gaussian_noise]
+
+
+                       |---------------------300ms--------------------|
+
+                       |---------150ms---------|                        -------------> 1 sample, 42 features
+                                   |---------150ms---------|
+                                              |---------150ms---------|
+
+
 
     '''
 
@@ -138,18 +149,19 @@ class FeatureExtraction:
             tmp.append(np.append(numRow, row))
             numRow[0] += 1
 
-        fmt = '%s,'*numCol
+        fmt = '%s,' * numCol
         fmt = fmt[:-1]
 
         np.savetxt(file, tmp, delimiter=",", fmt=fmt)
 
     def processDataset(self, path, wavNum, snrRange, outputFile):
-        file = open(outputFile, 'a')
+        file = open(outputFile, 'ab')
 
         header = ","
         for x in self.label:
             header += x + ","
-        file.write(header[:len(header)-1]+'\n')  # write .csv header
+
+        file.write((header[:len(header)-1]+'\n').encode('ascii'))  # write .csv header
 
         total = (wavNum-1)*float(snrRange)
         cont = [0]
@@ -162,35 +174,34 @@ class FeatureExtraction:
                 wav_base_path = path + 'sounds/000' + str(i)
 
             for j in range(1, snrRange+1):  # process differents snr  1=30db ... 6=5db
-                progress = float(((i-1)*(snrRange) + j) / total)
-                self.update_progress(progress)  # display progressbar
-
                 eventsList = self.dataPre.segmentation(xml_path, wav_base_path + '_' + str(j) + '.wav')
                 feature = self.extractFeatures(eventsList, self.dataPre.Fs, snr=j)
 
                 self.writeToCSV(feature, cont, len(self.label)+1, file)
 
-#############################################################
-############IN ORDER TO CREATE TRAINING DATASET##############
-#############################################################
+                progress = float(((i - 1) * (snrRange) + j) / total)
+                self.update_progress(progress)  # display progressbar
+
+# #############################################################
+# ############IN ORDER TO CREATE TRAINING DATASET##############
+# #############################################################
 
 print("Pocessing training dataset...")
-
+print("")
 start_time = time.time()
 
 fe = FeatureExtraction()
 fe.processDataset(path='/home/valerio/Scrivania/stage/dataset/MIVIA_DB4_dist/training/',
                        wavNum=67, snrRange=6,
-                       outputFile='out/training_dataset0300_overlap.csv')
+                       outputFile='out/validation3_training_dataset0300_overlap.csv')
 
 elapsed_time = time.time()-start_time
+print("")
 print("Elapsed time: " + str(elapsed_time))
 
-fe.dataPre.showStat()
-
-#############################################################
-#############################################################
-#############################################################
+# #############################################################
+# #############################################################
+# #############################################################
 
 
 #############################################################
@@ -198,18 +209,18 @@ fe.dataPre.showStat()
 #############################################################
 
 # print("Pocessing testing dataset...")
-#
+# print("")
 # start_time = time.time()
 #
 # fe = FeatureExtraction()
 # fe.processDataset(path='/home/valerio/Scrivania/stage/dataset/MIVIA_DB4_dist/testing/',
 #                        wavNum=30, snrRange=6,
-#                        outputFile='out/testing_dataset0300V.csv')
+#                        outputFile='out/validation3_testing_dataset0300_overlap.csv')
 #
 # elapsed_time = time.time()-start_time
+# print("")
 # print("Elapsed time: " + str(elapsed_time))
-#
-# fe.dataPre.showStat()
+
 
 #############################################################
 #############################################################

@@ -1,6 +1,7 @@
-from pyAudioAnalysis import audioBasicIO
 import xml.etree.ElementTree as et
 import Event
+import audioBasicIO
+
 
 class DatasetPreprocessing:
     '''
